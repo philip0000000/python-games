@@ -36,7 +36,6 @@ class SnakeGame:
             self.update()
             self.render()
             self.handle_input()
-                    
 
     def update(self):
         if self.main_loop_run == False:
