@@ -6,7 +6,7 @@ import msvcrt
 from random import randrange
 import time
 
-class SnakeGame:
+class snake_game:
     def __init__(self):
         # The dimensions of the game board
         self.BOARD_WIDTH  = 20
@@ -141,5 +141,5 @@ class SnakeGame:
             key = msvcrt.getch()
         return key
 
-game = SnakeGame()
+game = snake_game()
 game.start()
