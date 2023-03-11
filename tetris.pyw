@@ -1,9 +1,6 @@
 import pygame
 import random
 
-# TODO:
-# refactor code and make more responsive controllers
-
 # Initialize Pygame
 pygame.init()
 
@@ -36,15 +33,16 @@ GRID_TOP = 0
 GRID_LEFT = WINDOW_WIDTH // 2 - GRID_WIDTH * TILE_SIZE // 2
 GRID_BOTTOM = GRID_HEIGHT * TILE_SIZE
 GRID_RIGHT = GRID_LEFT + GRID_WIDTH * TILE_SIZE
+BLOCK_GRID_W = 10
+BLOCK_GRID_H = 20
 
-block_grid_w, block_grid_h = 10, 20
-block_grid = [[BLACK for _ in range(block_grid_w)] for _ in range(block_grid_h)]
+block_grid = [[BLACK for _ in range(BLOCK_GRID_W)] for _ in range(BLOCK_GRID_H)]
 
 class Block:
     def __init__(self, shape, color):
         self.shape = shape
         self.color = color
-        self.x = (block_grid_w // 2) - (len(self.shape[0]) // 2)
+        self.x = (BLOCK_GRID_W // 2) - (len(self.shape[0]) // 2)
         self.y = -2
 
 # Define functions
@@ -59,10 +57,10 @@ def draw_grid(surface):
     # Get cordinates
     size = pygame.display.get_window_size()
     size = (size[0] // 2, size[1] // 2)
-    x0 = size[0] - TILE_SIZE * (block_grid_w // 2)
-    x1 = x0 + TILE_SIZE * block_grid_w
-    y0 = size[1] - TILE_SIZE * (block_grid_h // 2)
-    y1 = y0 + TILE_SIZE * block_grid_h
+    x0 = size[0] - TILE_SIZE * (BLOCK_GRID_W // 2)
+    x1 = x0 + TILE_SIZE * BLOCK_GRID_W
+    y0 = size[1] - TILE_SIZE * (BLOCK_GRID_H // 2)
+    y1 = y0 + TILE_SIZE * BLOCK_GRID_H
 
     # Draw current blocks
     for y, row in enumerate(current_block.shape):
@@ -75,8 +73,8 @@ def draw_grid(surface):
                                     TILE_SIZE, TILE_SIZE))
  
     # Draw blocks
-    for y in range(block_grid_h):
-        for x in range(block_grid_w):
+    for y in range(BLOCK_GRID_H):
+        for x in range(BLOCK_GRID_W):
             if block_grid[y][x] != BLACK:
                 pygame.draw.rect(surface, block_grid[y][x],
                                 (x0 + x * TILE_SIZE, y0 + y * TILE_SIZE,
@@ -129,27 +127,53 @@ def new_block():
     color = random.choice(colors)
     return Block(shape, color)
 
+lock_down = 0
+lock_left = 0
+lock_right = 0
+lock_rotate = 0
+
+def update_lock():
+    global lock_down, lock_left, lock_right, lock_rotate
+    if lock_down > 0:
+        lock_down -= 0.1
+    if lock_left > 0:
+        lock_left -= 0.1
+    if lock_right > 0:
+        lock_right -= 0.1
+    if lock_rotate > 0:
+        lock_rotate -= 0.1
+
 def move_block(direction):
-    global speed, velocity
+    global speed, velocity, lock_down, lock_left, lock_right, lock_rotate
 
     # Add to speed
     speed += velocity
-    if speed > 1:
-        speed = 0.0
+    current_block.y += int(speed)
 
-    if direction == 'down':
+    if direction == 'down' and lock_down <= 0:
+        lock_down = 1
         while does_block_fit(1, 0, current_block.shape):
             current_block.y += 1
     elif direction == 'left':
-        if does_block_fit(0, -1, current_block.shape):
-            current_block.x -= int(speed)
+        if check_collision() and does_block_fit(0, -1, current_block.shape):
+            current_block.x -= 1
+        elif lock_left <= 0:
+            lock_left = 1
+            if does_block_fit(0, -1, current_block.shape):
+                current_block.x -= 1
     elif direction == 'right':
-        if does_block_fit(0, 1, current_block.shape):
-            current_block.x += int(speed)
-    elif direction == 'rotate':
+        if check_collision() and does_block_fit(0, 1, current_block.shape):
+            current_block.x += 1
+        elif lock_right <= 0:
+            lock_right = 1
+            if does_block_fit(0, 1, current_block.shape):
+                current_block.x += 1
+    elif direction == 'rotate' and lock_rotate <= 0:
+        lock_rotate = 1
         rotate_block()
-    else:
-        current_block.y += int(speed)
+
+    if speed > 1:
+        speed = 0.0
 
 def rotate_array(arr):
     n = len(arr)
@@ -164,9 +188,13 @@ def does_block_fit(y_pos, x_pos, arr2D):
     for y, row in enumerate(arr2D):
         for x, element in enumerate(row):
             if element == '*':
-                if current_block.x + x + x_pos < 0 or current_block.x + x + x_pos >= len(block_grid[0]) or \
-                   current_block.y + y + y_pos >= len(block_grid) or \
-                   block_grid[current_block.y + y + y_pos][current_block.x + x + x_pos] != BLACK:
+                if current_block.x + x + x_pos < 0 or current_block.x + x + x_pos >= len(block_grid[0]):
+                    return False
+                if current_block.y + y + y_pos >= len(block_grid):
+                    return False
+                if current_block.y + y + y_pos < 0:
+                    continue
+                if block_grid[current_block.y + y + y_pos][current_block.x + x + x_pos] != BLACK:
                     return False
     return True
 
@@ -183,7 +211,7 @@ def collides_with_bottom():
     # Check if the block collides with bottom of the grid
     for y, row in enumerate(current_block.shape):
         for x, element in enumerate(row):
-            if current_block.shape[y][x] == '*' and current_block.y + y + 1 >= len(block_grid):
+            if element == '*' and current_block.y + y + 1 >= len(block_grid):
                 return True
     return False
 
@@ -200,15 +228,15 @@ def check_collision():
 def imprint_block_to_grid(current_block):
     for y, row in enumerate(current_block.shape):
         for x, element in reversed(list(enumerate(row))):
-            if current_block.shape[y][x] == '*':
+            if element == '*':
                 block_grid[current_block.y + y][current_block.x + x] = current_block.color
 
 def check_gameover():
+    global game_over
     for y, row in enumerate(current_block.shape):
         for x, element in enumerate(row):
             if element == '*' and current_block.y + y + 1 > 0 and \
                 block_grid[current_block.y + y + 1][current_block.x + x] != BLACK:
-                    global game_over
                     game_over = True
                     return
 
@@ -230,51 +258,52 @@ def update_score():
                     # Jump to next row
                     break
     # Add new rows
-    while len(block_grid) < block_grid_h:
-        block_grid.insert(0, [BLACK for _ in range(block_grid_w)])
+    while len(block_grid) < BLOCK_GRID_H:
+        block_grid.insert(0, [BLACK for _ in range(BLOCK_GRID_W)])
 
-# Main game loop
+# Global variables
 clock = pygame.time.Clock()
 game_over = False
-exit = False
 score = 0
 speed = 0.0
-velocity = 0.2
+velocity = 0.02
 
 current_block = new_block()
 next_block = new_block()
 
-while not game_over:
-    # Input
+def handle_input():
+    global game_over
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             game_over = True
-            Exit = True
         elif event.type == pygame.KEYDOWN:
             if event.key == pygame.K_ESCAPE:
                 game_over = True
-                exit = True
+
+def update_game():
+    global current_block, next_block
+    command = ''
 
     # Get key press
     keys = pygame.key.get_pressed()
     if keys[pygame.K_PLUS]:
-        velocity += 0.1
+        velocity += 0.01
     if keys[pygame.K_MINUS]:
-        velocity -= 0.1
+        velocity -= 0.01
     
     # Move current block
-    direction = ''
     if keys[pygame.K_LEFT]:
-        direction = 'left'
+        command = 'left'
     if keys[pygame.K_RIGHT]:
-        direction = 'right'
+        command = 'right'
     if keys[pygame.K_DOWN]:
-        direction = 'down'
+        command = 'down'
     if keys[pygame.K_UP]:
-        direction = 'rotate'
+        command = 'rotate'
 
     # Update game logic
-    move_block(direction)
+    move_block(command)
+    update_lock()
     if (check_collision()):
         imprint_block_to_grid(current_block)
         update_score()
@@ -282,27 +311,26 @@ while not game_over:
         next_block = new_block()
         check_gameover()
 
-    # Draw graphics
+def draw_graphics():
     screen.fill(BLACK)
     draw_grid(screen)
     draw_text(screen, f'Score: {score}', 18, WINDOW_WIDTH - 80, 10)
-
     pygame.display.update()
-    clock.tick(FPS)
 
-if exit == False:
-    while not exit:
-        # Input
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                game_over = True
-                Exit = True
-            elif event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_ESCAPE:
-                    game_over = True
-                    exit = True
+def game_loop():
+    global game_over, current_block, next_block, velocity
+    while not game_over:
+        handle_input()
 
-        # Draw graphics
+        update_game()
+
+        draw_graphics()
+        clock.tick(FPS)
+
+    # Game over screen
+    game_over = False
+    while not game_over:
+        handle_input()
         screen.fill(BLACK)
         size = pygame.display.get_window_size()
         size = (size[0] // 2, size[1] // 2)
@@ -311,5 +339,9 @@ if exit == False:
         pygame.display.update()
         clock.tick(FPS)
 
-# Quit Pygame
-pygame.quit()
+def main():
+    game_loop()
+    pygame.quit()
+
+if __name__ == '__main__':
+    main()
