@@ -1,2 +1,2 @@
 # python-games
-simple collection of python games made by philip0000000
+collection of simple python games made by philip0000000
